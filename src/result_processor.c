@@ -4,6 +4,7 @@
 #include <util/minmax_heap.h>
 #include "ext/default.h"
 #include "rmutil/rm_assert.h"
+#include "util/timeout.h"
 
 /*******************************************************************************************************************
  *  General Result Processor Helper functions
@@ -70,7 +71,7 @@ static int rpidxNext(ResultProcessor *base, SearchResult *res) {
 
   if (++self->timeoutLimiter == 100) {
     self->timeoutLimiter = 0;
-    if (TimedOut(self->timeout) == RS_RESULT_TIMEDOUT) {
+    if (TimedOut(self->timeout) == 1) {
       return RS_RESULT_TIMEDOUT;
     }
   }

@@ -5,6 +5,8 @@
 #include "redisearch.h"
 #include "rmutil/rm_assert.h"
 #include "util/arr.h"
+#include "util/timeout.h"
+#include "config.h"
 
 typedef struct {
   rune *buf;
@@ -20,6 +22,10 @@ typedef struct {
   bool stop;
   const rune *origStr;
   int nOrigStr;
+
+  // timeout
+  struct timespec timeout;  // milliseconds until timeout
+  size_t timeoutCounter;    // counter to limit number of calls to TimedOut()  
 } RangeCtx;
 
 /*
@@ -971,6 +977,8 @@ void TrieNode_IterateContains(TrieNode *n, const rune *str, int nstr, bool prefi
   r.nOrigStr = nstr;
   r.prefix = prefix;
   r.suffix = suffix;
+  r.timeoutCounter = 0;
+  updateTimeout(&r.timeout, RSGlobalConfig.queryTimeoutMS);
   containsIterate(n, 0, 0, &r);
 
 done:
@@ -1009,6 +1017,14 @@ static void containsIterate(TrieNode *n, t_len localOffset, t_len globalOffset, 
   // No match
   if ((n->numChildren == 0 && r->nOrigStr - globalOffset > n->len) || r->stop) {
     return;
+  }
+
+  if (++r->timeoutCounter > 100) {
+    r->timeoutCounter = 0;
+    if (TimedOut(r->timeout)) {
+      r->stop = 1;
+      return;
+    }
   }
 
   if (n->len != 0) { // not root
